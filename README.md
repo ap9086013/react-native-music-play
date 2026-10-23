@@ -93,14 +93,14 @@ import {
 
 const tracks: Track[] = [
   {
-    postId: '1',
+    id: '1',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
     title: 'Sunrise Drive',
     artist: 'SoundHelix',
     artworkUrl: 'https://picsum.photos/id/1015/400/400',
   },
   {
-    postId: '2',
+    id: '2',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
     title: 'Midnight City',
     artist: 'T. Schürger',
@@ -150,13 +150,13 @@ Used by `playInPlaylist`.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `postId` | `string` | **Yes** | Unique ID of the track. Used to identify it in events and to remember its position. |
+| `id` | `string` | **Yes** | Unique ID of the track. Used to identify it in events and to remember its position. |
 | `url` | `string` | **Yes** | Remote URL (`https://...`) or local file path (`/path/to/file.mp3`). |
 | `title` | `string` | No | Shown in the notification / lock screen. |
 | `artist` | `string` | No | Shown in the notification / lock screen. |
 | `artworkUrl` | `string` | No | Cover image URL shown in the notification / lock screen. |
 
-Tracks without a `postId` or `url` are skipped.
+Tracks without a `id` or `url` are skipped.
 
 ### Methods
 
@@ -164,7 +164,7 @@ Tracks without a `postId` or `url` are skipped.
 
 | Method | Description |
 |---|---|
-| `playInPlaylist(items: Track[], startPostId: string): void` | Loads the playlist and starts playing the track whose `postId` equals `startPostId`. When a track ends, the next one starts automatically. |
+| `playInPlaylist(items: Track[], startid: string): void` | Loads the playlist and starts playing the track whose `id` equals `startid`. When a track ends, the next one starts automatically. |
 | `pause(url?: string): void` | Pauses playback. |
 | `resume(url?: string): void` | Resumes playback. |
 | `stop(url?: string): void` | Stops playback, clears the playlist, and removes the notification. |
@@ -173,7 +173,7 @@ Tracks without a `postId` or `url` are skipped.
 
 | Method | Description |
 |---|---|
-| `play(url: string): void` | Plays a single URL without a playlist (no `postId`). Good for quick use. |
+| `play(url: string): void` | Plays a single URL without a playlist (no `id`). Good for quick use. |
 | `seekTo(seconds: number, url?: string): void` | Jumps to a position, in seconds. |
 | `setLooping(enabled: boolean): void` | Repeats the current track when `true`. |
 | `getDuration(): Promise<number>` | Duration of the current track in seconds (`0` if not known yet). |
@@ -187,7 +187,7 @@ Tracks without a `postId` or `url` are skipped.
 
 ```ts
 {
-  postId: string | null;
+  id: string | null;
   url: string | null;
   positionSeconds: number;
   isPlaying: boolean;
@@ -206,13 +206,13 @@ sub.remove(); // when you no longer need it
 
 | Event | Payload | When it fires |
 |---|---|---|
-| `onProgress` | `{ currentTime, duration, url?, postId? }` | About every 500 ms while playing. Times are in seconds. |
-| `onLoad` | `{ duration, url?, postId? }` | The track is ready to play. `duration` is in seconds. |
-| `onLoading` | `{ loading, url?, postId? }` | Buffering starts (`true`) or ends (`false`). |
-| `onStateChange` | `{ state, url?, postId? }` | `state` is `'playing'`, `'paused'`, or `'stopped'`. |
-| `onTrackChanged` | `{ postId?, url?, reason }` | The track changed. `reason` is `'auto'` (finished and advanced) or `'seek'` (user, notification, or lock screen). |
-| `onFinish` | `{ url?, postId? }` | The last track in the playlist finished. |
-| `onError` | `{ message, url?, postId? }` | Playback or loading failed. |
+| `onProgress` | `{ currentTime, duration, url?, id? }` | About every 500 ms while playing. Times are in seconds. |
+| `onLoad` | `{ duration, url?, id? }` | The track is ready to play. `duration` is in seconds. |
+| `onLoading` | `{ loading, url?, id? }` | Buffering starts (`true`) or ends (`false`). |
+| `onStateChange` | `{ state, url?, id? }` | `state` is `'playing'`, `'paused'`, or `'stopped'`. |
+| `onTrackChanged` | `{ id?, url?, reason }` | The track changed. `reason` is `'auto'` (finished and advanced) or `'seek'` (user, notification, or lock screen). |
+| `onFinish` | `{ url?, id? }` | The last track in the playlist finished. |
+| `onError` | `{ message, url?, id? }` | Playback or loading failed. |
 
 ### TypeScript types
 
@@ -228,9 +228,9 @@ type PlayerState = 'playing' | 'paused' | 'stopped';
 
 ```ts
 const next = (currentId: string) => {
-  const i = tracks.findIndex((t) => t.postId === currentId);
+  const i = tracks.findIndex((t) => t.id === currentId);
   const nextTrack = tracks[(i + 1) % tracks.length]!;
-  playInPlaylist(tracks, nextTrack.postId);
+  playInPlaylist(tracks, nextTrack.id);
 };
 ```
 

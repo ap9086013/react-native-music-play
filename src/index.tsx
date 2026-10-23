@@ -2,7 +2,7 @@ import { NativeEventEmitter } from 'react-native';
 import MusicPlay from './NativeMusicPlay';
 
 export type Track = {
-  postId: string;
+  id: string;
   url: string;
   title?: string;
   artist?: string;
@@ -16,20 +16,20 @@ export type MusicPlayEvents = {
     currentTime: number;
     duration: number;
     url?: string;
-    postId?: string;
+    id?: string;
   };
-  onLoad: { duration: number; url?: string; postId?: string };
-  onLoading: { loading: boolean; url?: string; postId?: string };
-  onStateChange: { state: PlayerState; url?: string; postId?: string };
-  onFinish: { url?: string; postId?: string };
-  onTrackChanged: { postId?: string; url?: string; reason: 'auto' | 'seek' };
-  onError: { message: string; url?: string; postId?: string };
+  onLoad: { duration: number; url?: string; id?: string };
+  onLoading: { loading: boolean; url?: string; id?: string };
+  onStateChange: { state: PlayerState; url?: string; id?: string };
+  onFinish: { url?: string; id?: string };
+  onTrackChanged: { id?: string; url?: string; reason: 'auto' | 'seek' };
+  onError: { message: string; url?: string; id?: string };
 };
 
 const emitter = new NativeEventEmitter(MusicPlay as any);
 
-export function playInPlaylist(items: Track[], startPostId: string) {
-  MusicPlay.playInPlaylist(items, startPostId);
+export function playInPlaylist(items: Track[], startid: string) {
+  MusicPlay.playInPlaylist(items, startid);
 }
 export function play(url: string) {
   MusicPlay.play(url);

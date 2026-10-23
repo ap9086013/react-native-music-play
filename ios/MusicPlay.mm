@@ -15,7 +15,7 @@ static void *kTimeControlCtx = &kTimeControlCtx;
   NSString *_currentUrl;
   NSString *_currentMediaId;
 
-  // postId -> last position in seconds (same idea as savedPositions on Android)
+  // id -> last position in seconds (same idea as savedPositions on Android)
   NSMutableDictionary<NSString *, NSNumber *> *_saved;
 
   BOOL _loop;
@@ -48,7 +48,7 @@ RCT_EXPORT_MODULE(MusicPlay)
 - (void)emit:(NSString *)name extra:(NSDictionary *)extra {
   NSMutableDictionary *body = extra ? [extra mutableCopy] : [NSMutableDictionary new];
   if (_currentUrl) body[@"url"] = _currentUrl;
-  if (_currentMediaId) body[@"postId"] = _currentMediaId;
+  if (_currentMediaId) body[@"id"] = _currentMediaId;
   [self sendEventWithName:name body:body];
 }
 
@@ -181,7 +181,7 @@ RCT_EXPORT_MODULE(MusicPlay)
   NSDictionary *t = _queue[i];
   _index = i;
   _currentUrl = t[@"url"];
-  _currentMediaId = t[@"postId"];
+  _currentMediaId = t[@"id"];
   _stopped = NO;
 
   [self detachItem];
@@ -366,32 +366,32 @@ RCT_EXPORT_MODULE(MusicPlay)
 
 #pragma mark - Spec methods
 
-- (void)playInPlaylist:(NSArray *)items startPostId:(NSString *)startPostId {
+- (void)playInPlaylist:(NSArray *)items startid:(NSString *)startid {
   NSMutableArray<NSDictionary *> *list = [NSMutableArray new];
   for (id obj in items) {
     if (![obj isKindOfClass:NSDictionary.class]) continue;
     NSDictionary *d = obj;
-    NSString *postId = d[@"postId"];
+    NSString *id = d[@"id"];
     NSString *url = d[@"url"];
-    if (![postId isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class]) continue;
+    if (![id isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class]) continue;
     if ([url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].length == 0) continue;
     [list addObject:d];
   }
 
   NSInteger start = -1;
   for (NSInteger i = 0; i < (NSInteger)list.count; i++) {
-    if ([list[i][@"postId"] isEqualToString:startPostId]) { start = i; break; }
+    if ([list[i][@"id"] isEqualToString:startid]) { start = i; break; }
   }
 
   if (start < 0) {
-    _currentMediaId = startPostId;
+    _currentMediaId = startid;
     [self emit:@"onError" extra:@{ @"message": @"Track not found in playlist" }];
     return;
   }
 
   // same track already loaded: just resume it
   BOOL alreadyThisTrack = _player.currentItem && !_stopped &&
-                          [_currentMediaId isEqualToString:startPostId];
+                          [_currentMediaId isEqualToString:startid];
 
   if (_currentMediaId && _player.currentItem) {
     [self rememberPosition:_currentMediaId seconds:[self currentSeconds] finished:NO];
@@ -419,7 +419,7 @@ RCT_EXPORT_MODULE(MusicPlay)
   _queue = @[ @{ @"url": url } ];
   _loop = NO;
   [self loadIndex:0];
-  _currentMediaId = nil; // legacy single-track play has no postId
+  _currentMediaId = nil; // legacy single-track play has no id
 }
 
 - (void)pause:(NSString *)url {
@@ -451,7 +451,7 @@ RCT_EXPORT_MODULE(MusicPlay)
 
   NSMutableDictionary *body = [@{ @"state": @"stopped" } mutableCopy];
   if (stoppedUrl) body[@"url"] = stoppedUrl;
-  if (stoppedId) body[@"postId"] = stoppedId;
+  if (stoppedId) body[@"id"] = stoppedId;
   [self sendEventWithName:@"onStateChange" body:body];
 
   _currentUrl = nil;
@@ -479,7 +479,7 @@ RCT_EXPORT_MODULE(MusicPlay)
 
 - (void)getCurrentTrackInfo:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   resolve(@{
-    @"postId": _currentMediaId ?: [NSNull null],
+    @"id": _currentMediaId ?: [NSNull null],
     @"url": _currentUrl ?: [NSNull null],
     @"positionSeconds": @([self currentSeconds]),
     @"isPlaying": @(_player.timeControlStatus == AVPlayerTimeControlStatusPlaying),

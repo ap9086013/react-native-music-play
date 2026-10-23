@@ -43,7 +43,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
     private var currentMediaId: String? = null
 
     // [CHANGE 1] ------------------------------------------------
-    // postId -> last position in ms, so a podcast resumes where
+    // id -> last position in ms, so a podcast resumes where
     // the user left it when they swipe back to it.
     private val savedPositions = mutableMapOf<String, Long>()
 
@@ -113,7 +113,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         sendEvent("onLoading", Arguments.createMap().apply {
                             putBoolean("loading", true)
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
                     }
 
@@ -125,13 +125,13 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         sendEvent("onLoad", Arguments.createMap().apply {
                             putDouble("duration", durationSeconds)
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
 
                         sendEvent("onLoading", Arguments.createMap().apply {
                             putBoolean("loading", false)
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
 
                         sendEvent("onStateChange", Arguments.createMap().apply {
@@ -140,7 +140,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                                 if (mc.isPlaying) "playing" else "paused"
                             )
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
                     }
 
@@ -150,13 +150,13 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
 
                         sendEvent("onFinish", Arguments.createMap().apply {
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
 
                         sendEvent("onStateChange", Arguments.createMap().apply {
                             putString("state", "stopped")
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
 
                         stopProgressUpdates()
@@ -171,7 +171,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         if (isPlaying) "playing" else "paused"
                     )
                     putString("url", currentUrl)
-                    putString("postId", currentMediaId)
+                    putString("id", currentMediaId)
                 })
             }
 
@@ -207,7 +207,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                 if (!mediaId.isNullOrEmpty()) currentMediaId = mediaId
 
                 sendEvent("onTrackChanged", Arguments.createMap().apply {
-                    putString("postId", currentMediaId)
+                    putString("id", currentMediaId)
                     putString("url", currentUrl)
                     putString(
                         "reason",
@@ -223,7 +223,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         error.message ?: "Unknown audio error"
                     )
                     putString("url", currentUrl)
-                    putString("postId", currentMediaId)
+                    putString("id", currentMediaId)
                 })
             }
         })
@@ -238,7 +238,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
 
         for (i in 0 until items.size()) {
             val map = items.getMap(i) ?: continue
-            val postId = map.getString("postId") ?: continue
+            val id = map.getString("id") ?: continue
             val url = map.getString("url") ?: continue
 
             if (url.isBlank()) continue
@@ -261,7 +261,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
 
             list.add(
                 MediaItem.Builder()
-                    .setMediaId(postId)
+                    .setMediaId(id)
                     .setUri(url)
                     .setMediaMetadata(metadataBuilder.build())
                     .build()
@@ -271,20 +271,20 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
         return list
     }
 
-   override  fun playInPlaylist(items: ReadableArray, startPostId: String) {
+   override  fun playInPlaylist(items: ReadableArray, startid: String) {
         handler.post {
             val mediaItems = mediaItemsFromReadableArray(items)
-            val startIndex = mediaItems.indexOfFirst { it.mediaId == startPostId }
+            val startIndex = mediaItems.indexOfFirst { it.mediaId == startid }
 
             if (mediaItems.isEmpty() || startIndex == -1) {
                 sendEvent("onError", Arguments.createMap().apply {
                     putString("message", "Track not found in playlist")
-                    putString("postId", startPostId)
+                    putString("id", startid)
                 })
                 return@post
             }
 
-            currentMediaId = startPostId
+            currentMediaId = startid
             currentUrl = mediaItems[startIndex].localConfiguration?.uri?.toString()
 
             ensureController { mc ->
@@ -298,7 +298,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                     )
 
                     val alreadyThisTrack =
-                        mc.currentMediaItem?.mediaId == startPostId &&
+                        mc.currentMediaItem?.mediaId == startid &&
                             (mc.playbackState == Player.STATE_READY ||
                                 mc.playbackState == Player.STATE_BUFFERING ||
                                 mc.playbackState == Player.STATE_ENDED)
@@ -310,7 +310,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         sendEvent("onLoading", Arguments.createMap().apply {
                             putBoolean("loading", false)
                             putString("url", currentUrl)
-                            putString("postId", currentMediaId)
+                            putString("id", currentMediaId)
                         })
                         mc.play()
                         startProgressUpdates()
@@ -320,13 +320,13 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                     sendEvent("onLoading", Arguments.createMap().apply {
                         putBoolean("loading", true)
                         putString("url", currentUrl)
-                        putString("postId", currentMediaId)
+                        putString("id", currentMediaId)
                     })
 
                     mc.repeatMode = Player.REPEAT_MODE_OFF
 
                     // [CHANGE 4b] Start from the saved position (was: 0L)
-                    val resumeMs = savedPositions[startPostId] ?: 0L
+                    val resumeMs = savedPositions[startid] ?: 0L
                     mc.setMediaItems(mediaItems, startIndex, resumeMs)
 
                     mc.prepare()
@@ -336,7 +336,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                     sendEvent("onError", Arguments.createMap().apply {
                         putString("message", e.message ?: "Unable to play audio")
                         putString("url", currentUrl)
-                        putString("postId", currentMediaId)
+                        putString("id", currentMediaId)
                     })
                 }
             }
@@ -349,7 +349,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
             ensureController { mc ->
                 promise.resolve(
                     Arguments.createMap().apply {
-                        putString("postId", currentMediaId)
+                        putString("id", currentMediaId)
                         putString("url", currentUrl)
                         putDouble("positionSeconds", mc.currentPosition / 1000.0)
                         putBoolean("isPlaying", mc.isPlaying)
@@ -425,7 +425,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
             }
 
             val stoppedUrl = currentUrl
-            val stoppedPostId = currentMediaId
+            val stoppedid = currentMediaId
 
             ensureController { mc ->
                 // [CHANGE 5] Save position before stop() clears the playlist
@@ -443,7 +443,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                     Arguments.createMap().apply {
                         putString("state", "stopped")
                         putString("url", stoppedUrl)
-                        putString("postId", stoppedPostId)
+                        putString("id", stoppedid)
                     }
                 )
             }
@@ -506,7 +506,7 @@ class MusicPlayModule(reactContext: ReactApplicationContext) :
                         putDouble("currentTime", positionMs / 1000.0)
                         putDouble("duration", if (durationMs > 0L) durationMs / 1000.0 else 0.0)
                         putString("url", currentUrl)
-                        putString("postId", currentMediaId)
+                        putString("id", currentMediaId)
                     })
                 }
                 handler.postDelayed(this, 500L)

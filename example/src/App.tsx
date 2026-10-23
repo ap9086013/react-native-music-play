@@ -24,35 +24,35 @@ import {
 
 const TRACKS: Track[] = [
   {
-    postId: '1',
+    id: '1',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
     title: 'Sunrise Drive',
     artist: 'SoundHelix',
     artworkUrl: 'https://picsum.photos/id/1015/400/400',
   },
   {
-    postId: '2',
+    id: '2',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
     title: 'Midnight City',
     artist: 'T. Schürger',
     artworkUrl: 'https://picsum.photos/id/1025/400/400',
   },
   {
-    postId: '3',
+    id: '3',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
     title: 'Ocean Waves',
     artist: 'SoundHelix',
     artworkUrl: 'https://picsum.photos/id/1035/400/400',
   },
   {
-    postId: '4',
+    id: '4',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
     title: 'Neon Lights',
     artist: 'T. Schürger',
     artworkUrl: 'https://picsum.photos/id/1043/400/400',
   },
   {
-    postId: '5',
+    id: '5',
     url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
     title: 'Golden Hour',
     artist: 'SoundHelix',
@@ -79,10 +79,10 @@ export default function App() {
   const [lastError, setLastError] = useState('');
 
   const currentTrack = useMemo(
-    () => TRACKS.find((t) => t.postId === currentId) ?? null,
+    () => TRACKS.find((t) => t.id === currentId) ?? null,
     [currentId]
   );
-  const currentIndex = TRACKS.findIndex((t) => t.postId === currentId);
+  const currentIndex = TRACKS.findIndex((t) => t.id === currentId);
 
   // Android 13+ needs this for the playback notification
   useEffect(() => {
@@ -101,15 +101,15 @@ export default function App() {
       }),
       addListener('onLoad', (e) => {
         setDuration(e.duration);
-        if (e.postId) {
-          setDurations((d) => ({ ...d, [e.postId as string]: e.duration }));
+        if (e.id) {
+          setDurations((d) => ({ ...d, [e.id as string]: e.duration }));
         }
       }),
       addListener('onLoading', (e) => setLoading(e.loading)),
       addListener('onStateChange', (e) => setState(e.state)),
       addListener('onTrackChanged', (e) => {
-        if (e.postId) {
-          setCurrentId(e.postId);
+        if (e.id) {
+          setCurrentId(e.id);
           setTime(0);
         }
       }),
@@ -127,18 +127,18 @@ export default function App() {
   };
 
   const onPlayPause = () => {
-    if (!currentTrack) return playTrack(TRACKS[0]!.postId);
+    if (!currentTrack) return playTrack(TRACKS[0]!.id);
     state === 'playing' ? pause() : resume();
   };
 
   const onNext = () => {
     const next = TRACKS[(currentIndex + 1) % TRACKS.length]!;
-    playTrack(next.postId);
+    playTrack(next.id);
   };
 
   const onPrev = () => {
     const prev = TRACKS[(currentIndex - 1 + TRACKS.length) % TRACKS.length]!;
-    playTrack(prev.postId);
+    playTrack(prev.id);
   };
 
   const onBarPress = (x: number) => {
@@ -211,25 +211,23 @@ export default function App() {
       {/* TRACK LIST */}
       <FlatList
         data={TRACKS}
-        keyExtractor={(t) => t.postId}
+        keyExtractor={(t) => t.id}
         renderItem={({ item }) => {
-          const active = item.postId === currentId;
+          const active = item.id === currentId;
           return (
             <TouchableOpacity
               style={[styles.row, active && styles.rowActive]}
-              onPress={() => playTrack(item.postId)}
+              onPress={() => playTrack(item.id)}
             >
               <Image source={{ uri: item.artworkUrl }} style={styles.thumb} />
-              <View style={{ flex: 1 }}>
+              <View style={styles.boxContainer}>
                 <Text style={styles.rowTitle} numberOfLines={1}>
                   {item.title}
                 </Text>
                 <Text style={styles.rowArtist}>{item.artist}</Text>
               </View>
               <Text style={styles.rowDur}>
-                {durations[item.postId]
-                  ? fmt(durations[item.postId]!)
-                  : '--:--'}
+                {durations[item.id] ? fmt(durations[item.id]!) : '--:--'}
               </Text>
             </TouchableOpacity>
           );
@@ -241,6 +239,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
+  boxContainer: { flex: 1 },
   player: { alignItems: 'center', padding: 20 },
   cover: { width: 200, height: 200, borderRadius: 12, backgroundColor: '#333' },
   coverEmpty: { justifyContent: 'center', alignItems: 'center' },

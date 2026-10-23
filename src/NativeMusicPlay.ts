@@ -1,7 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
 
 export interface Spec extends TurboModule {
-  playInPlaylist(items: Array<Object>, startPostId: string): void;
+  playInPlaylist(items: Array<Object>, startid: string): void;
   play(url: string): void;
   pause(url?: string): void;
   resume(url?: string): void;
