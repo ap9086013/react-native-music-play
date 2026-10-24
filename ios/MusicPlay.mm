@@ -1,7 +1,8 @@
 #import "MusicPlay.h"
 #import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
-
+#import <UIKit/UIKit.h>
+#import <CoreMedia/CoreMedia.h>
 static void *kItemStatusCtx = &kItemStatusCtx;
 static void *kTimeControlCtx = &kTimeControlCtx;
 
@@ -15,12 +16,13 @@ static void *kTimeControlCtx = &kTimeControlCtx;
   NSString *_currentUrl;
   NSString *_currentMediaId;
 
-  // id -> last position in seconds (same idea as savedPositions on Android)
   NSMutableDictionary<NSString *, NSNumber *> *_saved;
+  NSMutableArray<NSDictionary *> *_cmdTokens; // @{ @"cmd": MPRemoteCommand, @"token": id }
 
   BOOL _loop;
   BOOL _stopped;
   BOOL _commandsReady;
+  BOOL _resumeAfterInterruption;
 }
 
 RCT_EXPORT_MODULE(MusicPlay)
@@ -31,6 +33,7 @@ RCT_EXPORT_MODULE(MusicPlay)
 - (instancetype)init {
   if (self = [super init]) {
     _saved = [NSMutableDictionary new];
+    _cmdTokens = [NSMutableArray new];
     _queue = @[];
     _index = -1;
     _stopped = YES;
@@ -90,6 +93,16 @@ RCT_EXPORT_MODULE(MusicPlay)
                  error:nil];
   [session setActive:YES error:nil];
 
+  NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+  [nc addObserver:self
+         selector:@selector(handleInterruption:)
+             name:AVAudioSessionInterruptionNotification
+           object:session];
+  [nc addObserver:self
+         selector:@selector(handleRouteChange:)
+             name:AVAudioSessionRouteChangeNotification
+           object:session];
+
   _player = [AVPlayer new];
   _player.automaticallyWaitsToMinimizeStalling = YES;
   [_player addObserver:self
@@ -100,6 +113,49 @@ RCT_EXPORT_MODULE(MusicPlay)
   [self setupRemoteCommands];
 }
 
+#pragma mark - Audio session events
+
+- (void)handleInterruption:(NSNotification *)n {
+  NSDictionary *info = n.userInfo;
+  AVAudioSessionInterruptionType type =
+      (AVAudioSessionInterruptionType)[info[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+  AVAudioSessionInterruptionOptions opts =
+      (AVAudioSessionInterruptionOptions)[info[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue];
+
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (type == AVAudioSessionInterruptionTypeBegan) {
+      self->_resumeAfterInterruption =
+          self->_player.timeControlStatus != AVPlayerTimeControlStatusPaused;
+    } else if (type == AVAudioSessionInterruptionTypeEnded) {
+      if ((opts & AVAudioSessionInterruptionOptionShouldResume) &&
+          self->_resumeAfterInterruption && !self->_stopped) {
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+        [self->_player play];
+      }
+      self->_resumeAfterInterruption = NO;
+    }
+  });
+}
+- (void)handleRouteChange:(NSNotification *)n {
+  AVAudioSessionRouteChangeReason reason =
+      (AVAudioSessionRouteChangeReason)[n.userInfo[AVAudioSessionRouteChangeReasonKey] unsignedIntegerValue];
+  // headphones / bluetooth disconnected -> pause (same as setHandleAudioBecomingNoisy on Android)
+  if (reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [self->_player pause];
+    });
+  }
+}
+
+#pragma mark - Remote commands
+
+- (void)addCommand:(MPRemoteCommand *)cmd
+           handler:(MPRemoteCommandHandlerStatus (^)(MPRemoteCommandEvent *))handler {
+  cmd.enabled = YES;
+  id token = [cmd addTargetWithHandler:handler];
+  [_cmdTokens addObject:@{ @"cmd": cmd, @"token": token }];
+}
+
 - (void)setupRemoteCommands {
   if (_commandsReady) return;
   _commandsReady = YES;
@@ -107,34 +163,39 @@ RCT_EXPORT_MODULE(MusicPlay)
   __weak MusicPlay *weakSelf = self;
   MPRemoteCommandCenter *c = [MPRemoteCommandCenter sharedCommandCenter];
 
-  [c.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
-    if (!weakSelf->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
-    [weakSelf->_player play];
-    return MPRemoteCommandHandlerStatusSuccess;
-  }];
-
-  [c.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
-    [weakSelf->_player pause];
-    return MPRemoteCommandHandlerStatusSuccess;
-  }];
-
-  [c.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [self addCommand:c.playCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
     MusicPlay *s = weakSelf;
-    if (!s->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
+    if (!s || !s->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
+    [s->_player play];
+    return MPRemoteCommandHandlerStatusSuccess;
+  }];
+
+  [self addCommand:c.pauseCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+    MusicPlay *s = weakSelf;
+    if (!s) return MPRemoteCommandHandlerStatusCommandFailed;
+    [s->_player pause];
+    return MPRemoteCommandHandlerStatusSuccess;
+  }];
+
+  [self addCommand:c.togglePlayPauseCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+    MusicPlay *s = weakSelf;
+    if (!s || !s->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
     if (s->_player.timeControlStatus == AVPlayerTimeControlStatusPaused) [s->_player play];
     else [s->_player pause];
     return MPRemoteCommandHandlerStatusSuccess;
   }];
 
-  [c.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [self addCommand:c.nextTrackCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
     MusicPlay *s = weakSelf;
-    if (s->_index + 1 >= (NSInteger)s->_queue.count) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
+    if (!s || s->_index + 1 >= (NSInteger)s->_queue.count)
+      return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
     [s goToIndex:s->_index + 1 reason:@"seek"];
     return MPRemoteCommandHandlerStatusSuccess;
   }];
 
-  [c.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [self addCommand:c.previousTrackCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
     MusicPlay *s = weakSelf;
+    if (!s || !s->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
     if ([s currentSeconds] > 3.0 || s->_index <= 0) {
       [s->_player seekToTime:kCMTimeZero];
     } else {
@@ -143,12 +204,22 @@ RCT_EXPORT_MODULE(MusicPlay)
     return MPRemoteCommandHandlerStatusSuccess;
   }];
 
-  [c.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [self addCommand:c.changePlaybackPositionCommand handler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+    MusicPlay *s = weakSelf;
+    if (!s || !s->_player.currentItem) return MPRemoteCommandHandlerStatusNoActionableNowPlayingItem;
     MPChangePlaybackPositionCommandEvent *pe = (MPChangePlaybackPositionCommandEvent *)e;
-    [weakSelf->_player seekToTime:CMTimeMakeWithSeconds(pe.positionTime, 1000)
-                completionHandler:^(BOOL finished) { [weakSelf updateNowPlaying]; }];
+    [s->_player seekToTime:CMTimeMakeWithSeconds(pe.positionTime, 1000)
+         completionHandler:^(BOOL finished) { [weakSelf updateNowPlaying]; }];
     return MPRemoteCommandHandlerStatusSuccess;
   }];
+}
+
+- (void)teardownRemoteCommands {
+  for (NSDictionary *d in _cmdTokens) {
+    [(MPRemoteCommand *)d[@"cmd"] removeTarget:d[@"token"]];
+  }
+  [_cmdTokens removeAllObjects];
+  _commandsReady = NO;
 }
 
 #pragma mark - Item handling
@@ -156,9 +227,9 @@ RCT_EXPORT_MODULE(MusicPlay)
 - (void)detachItem {
   if (_observedItem) {
     [_observedItem removeObserver:self forKeyPath:@"status" context:kItemStatusCtx];
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:AVPlayerItemDidPlayToEndTimeNotification
-                                                  object:_observedItem];
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:_observedItem];
+    [nc removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:_observedItem];
     _observedItem = nil;
   }
 }
@@ -169,10 +240,15 @@ RCT_EXPORT_MODULE(MusicPlay)
          forKeyPath:@"status"
             options:NSKeyValueObservingOptionNew
             context:kItemStatusCtx];
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(itemDidFinish:)
-                                               name:AVPlayerItemDidPlayToEndTimeNotification
-                                             object:item];
+  NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+  [nc addObserver:self
+         selector:@selector(itemDidFinish:)
+             name:AVPlayerItemDidPlayToEndTimeNotification
+           object:item];
+  [nc addObserver:self
+         selector:@selector(itemFailedToFinish:)
+             name:AVPlayerItemFailedToPlayToEndTimeNotification
+           object:item];
 }
 
 - (void)loadIndex:(NSInteger)i {
@@ -198,7 +274,6 @@ RCT_EXPORT_MODULE(MusicPlay)
   [self emit:@"onLoading" extra:@{ @"loading": @YES }];
   [_player replaceCurrentItemWithPlayerItem:item];
 
-  // resume where the user left this track
   double resume = _currentMediaId ? _saved[_currentMediaId].doubleValue : 0;
   if (resume > 0) {
     [item seekToTime:CMTimeMakeWithSeconds(resume, 1000) completionHandler:nil];
@@ -218,7 +293,6 @@ RCT_EXPORT_MODULE(MusicPlay)
 }
 
 - (void)itemDidFinish:(NSNotification *)n {
-  // finished tracks restart from 0 next time
   [self rememberPosition:_currentMediaId seconds:0 finished:YES];
 
   if (_loop) {
@@ -239,6 +313,12 @@ RCT_EXPORT_MODULE(MusicPlay)
   [self stopProgress];
 }
 
+- (void)itemFailedToFinish:(NSNotification *)n {
+  NSError *err = n.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
+  [self emit:@"onError" extra:@{ @"message": err.localizedDescription ?: @"Playback failed" }];
+  [self emit:@"onLoading" extra:@{ @"loading": @NO }];
+}
+
 #pragma mark - KVO
 
 - (void)observeValueForKeyPath:(NSString *)keyPath
@@ -257,7 +337,6 @@ RCT_EXPORT_MODULE(MusicPlay)
         [self emit:@"onLoading" extra:@{ @"loading": @YES }];
         break;
       case AVPlayerTimeControlStatusPaused: {
-        // ignore the automatic pause at the end of a track
         double d = [self duration];
         if (d > 0 && [self currentSeconds] >= d - 0.1) break;
         [self emit:@"onStateChange" extra:@{ @"state": @"paused" }];
@@ -336,10 +415,11 @@ RCT_EXPORT_MODULE(MusicPlay)
   NSString *artUrl = t[@"artworkUrl"];
   NSString *forId = _currentMediaId;
 
-  // clear the previous track's artwork
   NSMutableDictionary *info = [[MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo mutableCopy];
-  [info removeObjectForKey:MPMediaItemPropertyArtwork];
-  [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
+  if (info) {
+    [info removeObjectForKey:MPMediaItemPropertyArtwork];
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
+  }
 
   if (artUrl.length == 0) return;
   NSURL *url = [NSURL URLWithString:artUrl];
@@ -352,7 +432,10 @@ RCT_EXPORT_MODULE(MusicPlay)
     if (!img) return;
     dispatch_async(dispatch_get_main_queue(), ^{
       MusicPlay *s = weakSelf;
-      if (!s || ![s->_currentMediaId isEqualToString:forId]) return; // track already changed
+      if (!s) return;
+      // track changed while downloading (compare nil-safely)
+      if (forId ? ![forId isEqualToString:s->_currentMediaId] : s->_currentMediaId != nil) return;
+
       MPMediaItemArtwork *art =
           [[MPMediaItemArtwork alloc] initWithBoundsSize:img.size
                                           requestHandler:^UIImage *(CGSize size) { return img; }];
@@ -371,10 +454,10 @@ RCT_EXPORT_MODULE(MusicPlay)
   for (id obj in items) {
     if (![obj isKindOfClass:NSDictionary.class]) continue;
     NSDictionary *d = obj;
-    NSString *id = d[@"id"];
-    NSString *url = d[@"url"];
-    if (![id isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class]) continue;
-    if ([url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].length == 0) continue;
+    NSString *trackId = d[@"id"];
+    NSString *trackUrl = d[@"url"];
+    if (![trackId isKindOfClass:NSString.class] || ![trackUrl isKindOfClass:NSString.class]) continue;
+    if ([trackUrl stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].length == 0) continue;
     [list addObject:d];
   }
 
@@ -384,12 +467,10 @@ RCT_EXPORT_MODULE(MusicPlay)
   }
 
   if (start < 0) {
-    _currentMediaId = startid;
     [self emit:@"onError" extra:@{ @"message": @"Track not found in playlist" }];
     return;
   }
 
-  // same track already loaded: just resume it
   BOOL alreadyThisTrack = _player.currentItem && !_stopped &&
                           [_currentMediaId isEqualToString:startid];
 
@@ -429,6 +510,7 @@ RCT_EXPORT_MODULE(MusicPlay)
 
 - (void)resume:(NSString *)url {
   if (![self urlMatches:url]) return;
+  [[AVAudioSession sharedInstance] setActive:YES error:nil];
   [_player play];
 }
 
@@ -498,6 +580,9 @@ RCT_EXPORT_MODULE(MusicPlay)
 - (void)invalidate {
   [self stopProgress];
   [self detachItem];
+  [self teardownRemoteCommands];
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
   if (_player) {
     [_player removeObserver:self forKeyPath:@"timeControlStatus" context:kTimeControlCtx];
     [_player pause];
