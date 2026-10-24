@@ -1,7 +1,7 @@
 {
   "name": "react-native-music-play",
   "version": "0.1.0",
-  "description": "A lightweight native music player for React Native witj play ,pause, seek, and progress events.",
+  "description": "A lightweight music player for React Native with play, pause, seek, and progress events.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
