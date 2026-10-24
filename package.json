@@ -42,11 +42,19 @@
     "web": "vite",
     "build:web": "vite build"
   },
-  "keywords": [
-    "react-native",
-    "ios",
-    "android"
-  ],
+ "keywords": [
+  "react-native",
+  "ios",
+  "android",
+  "music",
+  "audio",
+  "player",
+  "music-player",
+  "audio-player",
+  "playlist",
+  "turbo-module",
+  "background-audio"
+],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ap9086013/react-native-music-play.git"
