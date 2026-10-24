@@ -328,13 +328,56 @@ cd ios && pod install && cd ..
 
 ## Contributing
 
-Pull requests are welcome. See the [contributing guide](CONTRIBUTING.md) for how to set up the project and run the example app:
+Contributions are welcome. Anyone can help, whether it's a bug report, a fix, a new feature, or a documentation improvement. See the [contributing guide](CONTRIBUTING.md) for more details.
 
-```sh
-yarn
-yarn example android
-yarn example ios
-```
+
+### Ways to contribute
+
+- **Report a bug** by opening an issue. Include your React Native version, platform and OS version, device or simulator, steps to reproduce, and the error log.
+- **Suggest a feature** by opening an issue before you start building, so we can agree on the approach first.
+- **Improve the docs** with a pull request. Typo fixes are welcome too.
+- **Fix an issue** by picking one from the issue list and commenting that you are working on it.
+ 
+The `main` branch is protected, so nobody can push to it directly. Every change goes through a pull request.
+
+1. **Fork** this repository and clone your fork.
+2. Create a branch from `main`:
+   ```sh
+   git checkout -b fix/short-description
+   ```
+3. Install dependencies and run the example app:
+   ```sh
+   yarn
+   yarn example android
+   yarn example ios
+   ```
+4. Make your changes. Test on **both Android and iOS** when you change native code.
+5. Make sure the checks pass:
+   ```sh
+   yarn lint
+   yarn typecheck
+   ```
+6. Commit using the [Conventional Commits](https://www.conventionalcommits.org) format. Commits that don't follow it are rejected:
+   ```sh
+   git commit -m "fix: pause playback when headphones disconnect"
+   ```
+   Common types: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`.
+7. Push your branch and open a **pull request** against `main`. Describe what changed, why, and how you tested it. Add screenshots or a screen recording for UI or lock screen changes.
+
+### Pull request guidelines
+
+- Keep each pull request focused on one change.
+- Update the README when you add or change the API.
+- Do not bump the version or edit the changelog. Maintainers handle releases.
+- A maintainer reviews every pull request. Please be patient and respond to review comments.
+
+### Running the example app on iOS
+
+Open `example/ios/MusicPlayExample.xcworkspace` in Xcode and set a development team under **Signing & Capabilities** if you want to run on a real device. The simulator works without a team. Lock screen controls are best tested on a real device.
+
+### Code of conduct
+
+Be respectful and constructive. Harassment and abusive behavior are not tolerated.
 
 ## License
 
