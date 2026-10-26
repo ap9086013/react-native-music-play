@@ -1,7 +1,7 @@
 {
   "name": "react-native-music-play",
-  "version": "0.1.0",
-  "description": "A lightweight music player for React Native with play, pause, seek, and progress events.",
+  "version": "0.1.1",
+  "description": "A lightweight React Native music player library for iOS and Android with play, pause, seek, playback progress events, and native audio controls.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -44,16 +44,21 @@
   },
  "keywords": [
   "react-native",
-  "ios",
-  "android",
-  "music",
-  "audio",
-  "player",
+  "react-native-music-player",
+  "react-native-audio-player",
   "music-player",
   "audio-player",
-  "playlist",
-  "turbo-module",
-  "background-audio"
+  "react-native-audio",
+  "audio",
+  "music",
+  "player",
+  "playback",
+  "seek",
+  "progress",
+  "ios",
+  "android",
+  "expo",
+  "turbo-module"
 ],
   "repository": {
     "type": "git",
